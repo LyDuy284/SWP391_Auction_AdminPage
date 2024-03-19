@@ -6,6 +6,8 @@ import { apiGetStakingList } from '@/services/StakingService'
 import { useEffect, useState } from 'react'
 import { NumericFormat } from 'react-number-format'
 import TopProduct from './TopProduct'
+import { apiGetAuctionState } from '@/services/AuctionStatusService'
+import { apiGetUserByMonth } from '@/services/ApiUserMonth'
 
 function countPostsByMonth(posts: any, range: any) {
   const postCounts: any = {}
@@ -47,12 +49,17 @@ const data = {
     'Th12',
   ],
 }
-
+interface AuctionData {
+  auctionName: string;
+  numberOfUser: number;
+}
 const Dashboard = () => {
   const [users, setUser] = useState([])
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(false)
   const [chartData, setChartData] = useState([])
+  const [auctionData, setAuctionData] = useState<any>(null)
+  const [auctionData1, setAuctionData1] = useState<AuctionData[]>([]);
 
   useEffect(() => {
     const postCountsByMonth = countPostsByMonth(posts, data.range)
@@ -62,7 +69,6 @@ const Dashboard = () => {
   useEffect(() => {
     onFetchData()
   }, [])
-
   const onFetchData = async () => {
     try {
       setLoading(true)
@@ -75,6 +81,50 @@ const Dashboard = () => {
     } catch (error) {
       setLoading(false)
       console.log({ error })
+    }
+  }
+
+  useEffect(() => {
+    fetchAuctionData()
+  }, [])
+
+  const fetchAuctionData = async () => {
+    try {
+      setLoading(true)
+      const response = await apiGetAuctionState<any, any>({})
+      console.log("Auction Data:", response.data);
+      setAuctionData(response.data.result)
+      setLoading(false)
+    } catch (error) {
+      setLoading(false)
+      console.error("Error fetching auction data:", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+  interface ApiResponse {
+    isError: boolean;
+    message: string;
+    result: AuctionData[];
+  }
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const response = await apiGetUserByMonth({});
+      const auctionData: AuctionData[] = response.data as AuctionData[];
+      console.log("Auction Data Response:", response.data);
+      // Now you can set auctionData to the state
+      // Type assertion to ApiResponse
+      const responseData = response.data as ApiResponse;
+
+      // Set the auction data state with the result array
+      setAuctionData1(responseData.result);
+      setLoading(false)
+    } catch (error) {
+      setLoading(false)
+      console.error("Error fetching auction data:", error)
     }
   }
 
@@ -118,6 +168,26 @@ const Dashboard = () => {
         </div>
       </Loading>
 
+      <div className="mt-4">
+        <Card>
+          <h6 className="font-semibold mb-4 text-sm">Số người tham gia theo từng phiên đấu giá</h6>
+          <Chart
+            series={[
+              {
+                name: 'Participants',
+                data: auctionData1.map(auction => auction.numberOfUser),
+              },
+            ]}
+            xAxis={auctionData1.map(auction => auction.auctionName)}
+            type="bar"
+            customOptions={{
+              colors: ['#33FF57'], // You can adjust colors as needed
+              legend: { show: false },
+            }}
+          />
+        </Card>
+      </div>
+
       <div className="mt-4 grid grid-cols-3 gap-4">
         <Card className="col-span-2">
           <div className="flex items-center justify-between">
@@ -141,7 +211,36 @@ const Dashboard = () => {
         </Card>
         <TopProduct data={users} />
       </div>
+
+      <Loading loading={loading}>
+        <div className="grid grid-cols-3 gap-4">
+          <Card>
+            <h6 className="font-semibold mb-4 text-sm">Số lượng phiên đấu giá theo trạng thái</h6>
+            <Chart
+              series={[
+                {
+                  name: 'Auction',
+                  data: [
+                    auctionData?.comingUpAuction || 0,
+                    auctionData?.inProgressAuction || 0,
+                    auctionData?.finishedAuction || 0,
+                    auctionData?.succeededAuction || 0,
+                    auctionData?.failedAuction || 0
+                  ],
+                },
+              ]}
+              xAxis={['Coming Up', 'In Progress', 'Finished', 'Succeeded', 'Failed']}
+              type="bar"
+              customOptions={{
+                colors: ['#FF5733', '#33FF57', '#337FFF', '#FF3333'],
+                legend: { show: false },
+              }}
+            />
+          </Card>
+        </div>
+      </Loading>
     </div>
+
   )
 }
 
